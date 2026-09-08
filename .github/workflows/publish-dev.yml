@@ -1,0 +1,40 @@
+name: Publish Dev
+
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - ".github/**"
+      - "README.md"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    if: vars.DEV_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/develop'
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      language: python
+      language_version: "3.12"
+      lint_enabled: false
+      uv_sync_args: --locked --all-groups
+      test_command: uv run --locked pytest -q
+
+  publish:
+    needs: validate
+    if: vars.DEV_PUBLISH_ENABLED == 'true' && github.ref == 'refs/heads/develop'
+    uses: NeuralTrust/workflows/.github/workflows/python-publish.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      gcp_project_id: ${{ vars.DEV_GCP_PROJECT_ID }}
+      build_tool: uv
+      python_version: "3.12"
+    secrets:
+      WIF_PROVIDER: ${{ secrets.DEV_WIF_PROVIDER }}
+      WIF_SERVICE_ACCOUNT: ${{ secrets.DEV_WIF_SERVICE_ACCOUNT }}

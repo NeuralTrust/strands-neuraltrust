@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: vars.RELEASE_ENABLED == 'true' && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/strands-neuraltrust
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Validate release metadata
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+          version = project["version"]
+          if project["name"] != "strands-neuraltrust":
+              raise SystemExit("Unexpected package name")
+          if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+              raise SystemExit("Only stable versions may be published")
+          if os.environ["GITHUB_REF_NAME"] != f"v{version}":
+              raise SystemExit("Release tag does not match the package version")
+          if any(c.startswith("Private ::") for c in project.get("classifiers", [])):
+              raise SystemExit("Private packages must not be published")
+          PY
+      - run: uv sync --locked --all-groups
+      - name: Check package
+        run: |
+          uv run --locked ruff check .
+          uv run --locked ruff format --check .
+          uv run --locked mypy
+          uv run --locked pytest -q
+          OTEL_SEMCONV_STABILITY_OPT_IN='gen_ai_unredacted_attributes=' uv run --locked python examples/offline.py
+      - run: uv build
+      - run: uv run --locked twine check --strict dist/*
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always
