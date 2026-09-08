@@ -1,0 +1,66 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/**"
+      - "README.md"
+  workflow_dispatch:
+
+concurrency:
+  group: auto-release-caller-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: vars.RELEASE_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    uses: NeuralTrust/workflows/.github/workflows/ai-release-bump.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      initial_version: v0.1.0
+      update_changelog: false
+      version_update_script: |
+        python3 - <<'PY'
+        import os
+        import re
+        import tomllib
+        from pathlib import Path
+
+        version = os.environ["VERSION"]
+        if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+            raise SystemExit("Expected a stable semantic version")
+        project_path = Path("pyproject.toml")
+        lock_path = Path("uv.lock")
+        project_text = project_path.read_text()
+        lock_text = lock_path.read_text()
+        project = tomllib.loads(project_text)
+        lock = tomllib.loads(lock_text)
+        assert project["project"]["name"] == "strands-neuraltrust"
+        packages = [p for p in lock["package"] if p["name"] == "strands-neuraltrust"]
+        assert len(packages) == 1
+        assert packages[0]["source"] == {"editable": "."}
+        assert packages[0]["version"] == project["project"]["version"]
+        project_text, project_count = re.subn(
+            r'(?ms)(^\[project\]\n.*?^version = ")[^"]+("$)',
+            lambda match: match[1] + version + match[2],
+            project_text,
+        )
+        lock_text, lock_count = re.subn(
+            r'(?m)(^\[\[package\]\]\nname = "strands-neuraltrust"\nversion = ")[^"]+("$)',
+            lambda match: match[1] + version + match[2],
+            lock_text,
+        )
+        assert project_count == lock_count == 1
+        project["project"]["version"] = version
+        packages[0]["version"] = version
+        assert tomllib.loads(project_text) == project
+        assert tomllib.loads(lock_text) == lock
+        project_path.write_text(project_text)
+        lock_path.write_text(lock_text)
+        PY
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}

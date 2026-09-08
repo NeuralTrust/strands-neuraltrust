@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, reopened, synchronize, edited]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      language: python
+      language_version: "3.12"
+      test_enabled: false
+      uv_sync_args: --locked --all-groups
+      lint_command: |
+        uv run --locked ruff check .
+        uv run --locked ruff format --check .
+        uv run --locked mypy
+
+  tests:
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      language: python
+      language_version: ${{ matrix.language_version }}
+      lint_enabled: false
+      uv_sync_args: --locked --all-groups
+      test_command: |
+        uv run --locked pytest -q
+        uv run --locked python examples/offline.py
+
+  package:
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      language: python
+      language_version: "3.12"
+      lint_enabled: false
+      uv_sync_args: --locked --all-groups
+      test_command: |
+        uv build
+        uv run --locked twine check --strict dist/*
+
+  security:
+    if: github.event.action != 'edited'
+    uses: NeuralTrust/workflows/.github/workflows/sast.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      bandit_enabled: true
+      bandit_path: src/strands_neuraltrust
+      pip_audit_enabled: true
+      trivy_pr_comment: false
+
+  pr_metadata_validation:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: NeuralTrust/workflows/.github/workflows/pr-metadata.yml@9126164828e7cb2f6da91d8f87f54b663d323324
