@@ -49,7 +49,7 @@ jobs:
       uv_sync_args: --locked --all-groups
       test_command: |
         uv run --locked pytest -q
-        uv run --locked python examples/offline.py
+        OTEL_SEMCONV_STABILITY_OPT_IN='gen_ai_unredacted_attributes=' uv run --locked python examples/offline.py
 
   package:
     if: github.event.action != 'edited'
