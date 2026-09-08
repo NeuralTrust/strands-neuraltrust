@@ -1,0 +1,79 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "strands-neuraltrust"
+version = "0.1.0.dev2"
+description = "TrustGuard interventions and guarded complete-result invocation for Strands Agents"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "NeuralTrust" }]
+keywords = ["strands", "neuraltrust", "trustguard", "guardrails", "agents"]
+classifiers = [
+  "Private :: Do Not Upload",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dependencies = [
+  "strands-agents==1.54.0",
+  "httpx>=0.28.1,<0.29",
+  "jsonschema>=4.23,<5",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8,<10", "pytest-asyncio>=0.25,<2", "pytest-cov>=6,<8",
+  "pytest-socket>=0.7,<1", "hypothesis>=6,<7", "respx>=0.22,<1",
+  "ruff>=0.11,<1", "mypy>=1.15,<2", "types-jsonschema>=4.23",
+  "build>=1.2,<2", "twine>=6,<7", "pip-audit>=2.9,<3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strands_neuraltrust"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
+include = [
+  "/src", "/tests", "/examples/offline.py",
+  "/docs/configuration.md", "/docs/security-boundaries.md",
+  "/scripts/check.py", "/scripts/verify_artifacts.py",
+  "/pyproject.toml", "/README.md", "/LICENSE", "/CHANGELOG.md",
+  "/CONTRIBUTING.md", "/SECURITY.md", "/uv.lock",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --disable-socket --allow-unix-socket"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src/strands_neuraltrust"]
+strict = true
+
+[tool.coverage.run]
+branch = true
+source = ["strands_neuraltrust"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
