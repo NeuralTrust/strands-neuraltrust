@@ -1,4 +1,4 @@
-"""Exercise protection boundaries through Strands 1.54's actual event loop.
+"""Exercise protection boundaries through the actual Strands event loop.
 
 Explicit text_assessment=False cases retain the qualified structured-only
 contract; default two-pass execution is covered in test_text_assessment.py.
