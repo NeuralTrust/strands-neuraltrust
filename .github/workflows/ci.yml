@@ -124,7 +124,27 @@ jobs:
 
   pr_metadata_validation:
     if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-    uses: NeuralTrust/workflows/.github/workflows/pr-metadata.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # Public contributions must not require private issue references.
+      - name: Validate public PR metadata
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          title = os.environ.get("PR_TITLE", "")
+          body = os.environ.get("PR_BODY", "").strip()
+          prefix = r"^(fix|feat|build|chore|ci|docs|style|refactor|perf|test)(\([^()]+\))?!?:"
+          if not re.match(prefix, title):
+              sys.exit("PR title must use a conventional commit prefix.")
+          if len(body) < 20:
+              sys.exit("PR description must contain at least 20 characters.")
+          print("Public PR title and description are valid.")
+          PY
