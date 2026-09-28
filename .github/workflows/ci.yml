@@ -2,6 +2,8 @@ name: CI
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "23 7 * * 1"
   push:
     branches: [main, develop]
   pull_request:
@@ -9,7 +11,7 @@ on:
     types: [opened, reopened, synchronize, edited]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'metadata' || 'code' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -66,6 +68,51 @@ jobs:
         uv build
         uv run --locked twine check --strict dist/*
 
+  sdk_compatibility:
+    name: SDK ${{ matrix.sdk.name }} / Python ${{ matrix.language_version }}
+    if: github.event.action != 'edited'
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        sdk:
+          - name: minimum
+            requirement: strands-agents==1.54.0
+          - name: latest
+            requirement: strands-agents>=1.54.0,<2.0.0
+    uses: NeuralTrust/workflows/.github/workflows/tests.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    with:
+      language: python
+      language_version: ${{ matrix.language_version }}
+      lint_enabled: false
+      uv_sync_args: --locked --all-groups
+      test_command: |
+        compat_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/sdk-compat.XXXXXX")
+        uv build --wheel --out-dir "$compat_root/dist"
+        uv venv --python '${{ matrix.language_version }}' "$compat_root/venv"
+        compat_python="$compat_root/venv/bin/python"
+        # Resolve afresh in an isolated environment; uv run would restore the lockfile.
+        uv pip install --python "$compat_python" --upgrade --strict \
+          --group dev "$compat_root"/dist/*.whl '${{ matrix.sdk.requirement }}'
+        uv pip check --python "$compat_python"
+        "$compat_python" -I - <<'PY'
+        import sys
+        from importlib.metadata import version
+        from pathlib import Path
+
+        import strands_neuraltrust
+
+        installed_path = Path(strands_neuraltrust.__file__).resolve()
+        assert installed_path.is_relative_to(Path(sys.prefix).resolve()), installed_path
+        print(f"strands-neuraltrust {version('strands-neuraltrust')} from {installed_path}")
+        print(f"strands-agents {version('strands-agents')}")
+        PY
+        "$compat_python" -I -m pytest -q
+        OTEL_SEMCONV_STABILITY_OPT_IN='gen_ai_unredacted_attributes=' "$compat_python" -I examples/offline.py
+
   security:
     if: github.event.action != 'edited'
     uses: NeuralTrust/workflows/.github/workflows/sast.yml@9126164828e7cb2f6da91d8f87f54b663d323324
@@ -77,7 +124,27 @@ jobs:
 
   pr_metadata_validation:
     if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-    uses: NeuralTrust/workflows/.github/workflows/pr-metadata.yml@9126164828e7cb2f6da91d8f87f54b663d323324
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # Public contributions must not require private issue references.
+      - name: Validate public PR metadata
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import sys
+
+          title = os.environ.get("PR_TITLE", "")
+          body = os.environ.get("PR_BODY", "").strip()
+          prefix = r"^(fix|feat|build|chore|ci|docs|style|refactor|perf|test)(\([^()]+\))?!?:"
+          if not re.match(prefix, title):
+              sys.exit("PR title must use a conventional commit prefix.")
+          if len(body) < 20:
+              sys.exit("PR description must contain at least 20 characters.")
+          print("Public PR title and description are valid.")
+          PY

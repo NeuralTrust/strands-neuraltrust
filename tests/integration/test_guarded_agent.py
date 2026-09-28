@@ -238,9 +238,9 @@ def test_incomplete_or_multiple_message_stream_refused(chunks: Any) -> None:
 @pytest.mark.parametrize(
     "delta",
     [
-        {"reasoningContent": {"text": "private"}},
-        {"reasoningContent": {"signature": "private"}},
-        {"citation": {"title": "private"}},
+        {"reasoningContent": {"text": "UNSUPPORTED_CONTENT_CANARY"}},
+        {"reasoningContent": {"signature": "UNSUPPORTED_CONTENT_CANARY"}},
+        {"citation": {"title": "UNSUPPORTED_CONTENT_CANARY"}},
         {"text": "one", "toolUse": {"input": "{}"}},
         {"image": {}},
     ],
@@ -250,7 +250,7 @@ def test_unsupported_stream_refused_before_parser(delta: Any, caplog: Any) -> No
     chunks[1] = {"contentBlockDelta": {"delta": delta}}
     with pytest.raises(TrustGuardUnsupportedContentError):
         GuardedAgent(model=RawModel(chunks), client=FakeClient()).invoke("hello")
-    assert "private" not in caplog.text
+    assert "UNSUPPORTED_CONTENT_CANARY" not in caplog.text
 
 
 @pytest.mark.parametrize("args", ['{"secret":', '{"x":1,"x":2}', '{"x":NaN}', "[]", ""])
