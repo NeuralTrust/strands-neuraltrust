@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "strands-neuraltrust"
-version = "0.1.1"
+version = "0.1.2"
 description = "TrustGuard interventions and guarded complete-result invocation for Strands Agents"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -24,7 +24,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "strands-agents==1.54.0",
+  "strands-agents>=1.54.0,<2.0.0",
   "httpx>=0.28.1,<0.29",
   "jsonschema>=4.23,<5",
 ]
