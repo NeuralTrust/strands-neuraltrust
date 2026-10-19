@@ -28,7 +28,7 @@ def config() -> TrustGuardConfig:
     return TrustGuardConfig(api_key="PRIVATE-KEY", base_url="https://guard.example")
 
 
-@pytest.mark.parametrize("status", ["allow", "report", "transform", "ask", "block"])
+@pytest.mark.parametrize("status", ["allow", "skip", "report", "transform", "ask", "block"])
 def test_sync_wire_contract_and_advisory_status(config: TrustGuardConfig, status: str) -> None:
     requests = []
 
@@ -281,7 +281,7 @@ def test_owned_sync_pool_ignores_env_and_is_closed_once(config: TrustGuardConfig
         guard.__enter__()
 
 
-@pytest.mark.parametrize("status", ["allow", "report", "transform", "ask", "block"])
+@pytest.mark.parametrize("status", ["allow", "skip", "report", "transform", "ask", "block"])
 async def test_async_verdicts_and_injected_ownership(config: TrustGuardConfig, status: str) -> None:
     requests = []
 
