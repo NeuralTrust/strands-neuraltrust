@@ -75,6 +75,7 @@ a new agent after any failed or cancelled invocation.
 | TrustGuard | Integration behavior |
 | --- | --- |
 | `allow` | Continue with the assessed content. |
+| `skip` | Continue with the assessed content. |
 | `report` | Continue and record the decision. |
 | `transform` | Apply a validated replacement to supported text or JSON. |
 | `block` | Stop with `TrustGuardBlocked`. |

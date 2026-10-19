@@ -11,8 +11,11 @@ from typing import Any, Literal, cast
 from .exceptions import TrustGuardConfigurationError, TrustGuardProtocolError
 
 Direction = Literal["input", "output"]
-Status = Literal["allow", "report", "transform", "ask", "block"]
-_SEVERITY = {"allow": 0, "report": 1, "transform": 2, "ask": 3, "block": 4}
+Status = Literal["allow", "skip", "report", "transform", "ask", "block"]
+# Skip continues like allow. It shares report's rank so a Skip gate can follow an
+# earlier Report finding, and a report decision can carry a skip finding, without
+# either action outranking the other status. Higher ranks remain enforcement.
+_SEVERITY = {"allow": 0, "skip": 1, "report": 1, "transform": 2, "ask": 3, "block": 4}
 _OPAQUE_ID = re.compile(r"(?:[a-fA-F0-9]{16,64}|[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12})\Z")
 _INVALID_RESPONSE = "TrustGuard returned an invalid evaluation response."
 
@@ -146,7 +149,7 @@ def parse_verdict(body: bytes) -> Verdict:
             raise ValueError
         if status == "transform" and transformed is None:
             raise ValueError
-        if status in ("allow", "report") and transformed is not None:
+        if status in ("allow", "skip", "report") and transformed is not None:
             raise ValueError
         findings = data.get("findings", [])
         if type(findings) is not list:
