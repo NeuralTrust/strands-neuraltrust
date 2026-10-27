@@ -159,6 +159,7 @@ class TrustGuardIntervention(InterventionHandler):
             raise error
         if not isinstance(verdict, Verdict) or verdict.status not in (
             "allow",
+            "skip",
             "report",
             "transform",
             "ask",
