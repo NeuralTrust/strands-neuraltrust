@@ -15,7 +15,7 @@ from strands_neuraltrust.config import TrustGuardConfig
 from strands_neuraltrust.exceptions import TrustGuardConfigurationError, TrustGuardProtocolError
 
 
-@pytest.mark.parametrize("status", ["allow", "report", "transform", "ask", "block"])
+@pytest.mark.parametrize("status", ["allow", "skip", "report", "transform", "ask", "block"])
 def test_known_verdicts(status: str) -> None:
     data: dict[str, Any] = {"status": status}
     if status == "transform":
@@ -70,7 +70,11 @@ def test_known_verdicts(status: str) -> None:
         b'{"status":"transform","transformed_payload":"safe"}',
         b'{"status":"transform","transformed_payload":[]}',
         b'{"status":"allow","transformed_payload":{}}',
+        b'{"status":"skip","transformed_payload":{}}',
         b'{"status":"report","transformed_payload":{}}',
+        b'{"status":"allow","findings":[{"outcome":{"action":"skip"}}]}',
+        b'{"status":"skip","findings":[{"outcome":{"action":"block"}}]}',
+        b'{"status":"skip","findings":[{"outcome":{"action":"unknown"}}]}',
         b'{"status":"allow","x":"\xff"}',
         b'{"status":"allow","extra":' + b"[" * 65 + b"0" + b"]" * 65 + b"}",
     ],
@@ -116,13 +120,36 @@ def test_observational_finding_does_not_require_an_action() -> None:
     assert verdict.status == "report"
 
 
+def test_skip_status_is_accepted() -> None:
+    verdict = parse_verdict(b'{"status":"skip","transformed_payload":null,"findings":[]}')
+    assert verdict.status == "skip"
+    assert verdict.transformed_payload is None
+
+
+def test_skip_status_accepts_an_earlier_report_finding() -> None:
+    verdict = parse_verdict(
+        b'{"status":"skip","transformed_payload":null,"findings":['
+        b'{"source":{"kind":"gate"},"signal":{"type":"gate_report"},"outcome":{"action":"report"}},'
+        b'{"source":{"kind":"gate"},"signal":{"type":"gate_skip"},"outcome":{"action":"skip"}}]}'
+    )
+    assert verdict.status == "skip"
+
+
+def test_report_status_accepts_skip_finding_action() -> None:
+    verdict = parse_verdict(
+        b'{"status":"report","findings":[{"source":{"kind":"gate"},'
+        b'"signal":{"type":"gate_skip"},"outcome":{"action":"skip"}}]}'
+    )
+    assert verdict.status == "report"
+
+
 @pytest.mark.parametrize("identifier", ["secret request text", "PRIVATE", "\n", "x" * 1000, "", None])
 def test_nonopaque_identifiers_are_discarded(identifier: Any) -> None:
     verdict = parse_verdict(json.dumps({"status": "allow", "request_id": identifier}).encode())
     assert verdict.request_id is None
 
 
-@given(st.text().filter(lambda value: value not in {"allow", "report", "transform", "ask", "block"}))
+@given(st.text().filter(lambda value: value not in {"allow", "skip", "report", "transform", "ask", "block"}))
 def test_arbitrary_unknown_status_never_allows(status: str) -> None:
     with pytest.raises(TrustGuardProtocolError):
         parse_verdict(json.dumps({"status": status}).encode())

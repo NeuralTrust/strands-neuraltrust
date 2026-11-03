@@ -15,6 +15,7 @@ import pytest
 from strands import tool
 
 from strands_neuraltrust import (
+    DecisionRecord,
     GuardedAgent,
     TrustGuardApprovalRequired,
     TrustGuardBlocked,
@@ -79,6 +80,26 @@ def test_text_transform_used_at_every_boundary(at: int) -> None:
     assert result.text == ("transformed" if at == 3 else "answer")
     if at < 3:
         assert model.requests[0]["messages"][0]["content"][0]["text"] == "transformed"
+
+
+def test_skip_status_continues_like_allow() -> None:
+    model = FakeModel([text_response("MODEL ANSWER")])
+    result = GuardedAgent(
+        model=model,
+        client=FakeClient(verdicts=[Verdict("skip")]),
+        text_assessment=False,
+    ).invoke("What is 2+2?")
+    assert result.text == "MODEL ANSWER"
+    assert model.index == 1
+    assert result.decisions[0] == DecisionRecord("preflight", "skip")
+
+
+def test_skip_status_continues_through_default_text_assessment() -> None:
+    model = FakeModel([text_response("MODEL ANSWER")])
+    result = GuardedAgent(model=model, client=FakeClient(lambda *_: Verdict("skip"))).invoke("What is 2+2?")
+    assert result.text == "MODEL ANSWER"
+    assert model.index == 1
+    assert {decision.status for decision in result.decisions} == {"allow"}
 
 
 @pytest.mark.parametrize("verdict", [Verdict("transform"), Verdict("mystery"), None])
